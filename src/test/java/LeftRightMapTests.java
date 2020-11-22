@@ -1,4 +1,4 @@
-import dev.mccue.concurrent.ConcurrentReadOptimizedMap;
+import dev.mccue.left_right.LeftRightMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -10,10 +10,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
 
-public class ConcurrentReadOptimizedMapTests {
+public class LeftRightMapTests {
     @Test
     public void writesOnlyPropagateOnRefresh() {
-        final var map = ConcurrentReadOptimizedMap.<String, String>create();
+        final var map = LeftRightMap.<String, String>create();
         final var reader = map.readerFactory().createReader();
         final var writer = map.writer();
 
@@ -26,7 +26,7 @@ public class ConcurrentReadOptimizedMapTests {
 
     @Test
     public void tryWithResourcesWillRefresh() {
-        final var map = ConcurrentReadOptimizedMap.<String, String>create();
+        final var map = LeftRightMap.<String, String>create();
         final var reader = map.readerFactory().createReader();
 
         try(final var writer = map.writer()) {
@@ -38,7 +38,7 @@ public class ConcurrentReadOptimizedMapTests {
 
     @Test
     public void everyReaderSeesChangesAfterRefresh() {
-        final var map = ConcurrentReadOptimizedMap.<String, String>create();
+        final var map = LeftRightMap.<String, String>create();
         final var readers = List.of(
                 map.readerFactory().createReader(),
                 map.readerFactory().createReader(),
@@ -62,7 +62,7 @@ public class ConcurrentReadOptimizedMapTests {
     @Test
     public void readersOnDifferentThreadsSeeResults() {
         final var executor = Executors.newFixedThreadPool(8);
-        final var map = ConcurrentReadOptimizedMap.<String, String>create();
+        final var map = LeftRightMap.<String, String>create();
         final var readers = List.of(
                 map.readerFactory().createReader(),
                 map.readerFactory().createReader(),

@@ -1,24 +1,25 @@
-package dev.mccue.concurrent;
+package dev.mccue.left_right;
 
 import java.io.Closeable;
 import java.util.HashMap;
 import java.util.function.BiConsumer;
 
 /**
- * A (hopefully) Fast, Thread safe map implementation inspired by Jon Gjengset's evmap
+ * A (hopefully) Fast, (hopefully) Thread safe Map data structure inspired by Jon Gjengset's evmap
  * rust crate and talks on Youtube. Design is hypothetically optimized for lots of
  * concurrent reads.
  *
- * Unlike evmap, this is not a multi value map. I'm uncertain if it should be.
+ * Neither Readers or Writers implement java.util.Map at this stage, so if that is
+ * a showstopper for you then
  *
  * @param <K> The Key, assumed to be a valid immutable HashMap key.
  * @param <V> The Value, assumed to be safe to share across threads.
  */
-public final class ConcurrentReadOptimizedMap<K, V> {
+public final class LeftRightMap<K, V> {
     private final ReaderFactory<K, V> readerFactory;
     private final Writer<K, V> writer;
 
-    private ConcurrentReadOptimizedMap(ReaderFactory<K, V> readerFactory, Writer<K, V> writer) {
+    private LeftRightMap(ReaderFactory<K, V> readerFactory, Writer<K, V> writer) {
         this.readerFactory = readerFactory;
         this.writer = writer;
     }
@@ -31,7 +32,7 @@ public final class ConcurrentReadOptimizedMap<K, V> {
     }
 
     /**
-     * @return The writer for the map.
+     * @return The writer for the map. Should only be used by a single thread.
      */
     public Writer<K, V> writer() {
         return this.writer;
@@ -45,20 +46,17 @@ public final class ConcurrentReadOptimizedMap<K, V> {
      * @param <K> The Key, assumed to be a valid immutable HashMap key.
      * @param <V> The Value, assumed to be safe to share across threads.
      */
-    public static <K, V> ConcurrentReadOptimizedMap<K, V> create() {
-        LeftRight<HashMap<K, V>> leftRight = LeftRight.create(HashMap::new);
-
+    public static <K, V> LeftRightMap<K, V> create() {
+        final var leftRight = LeftRight.<HashMap<K, V>>create(HashMap::new);
         final var readerFactory = new ReaderFactory<>(leftRight.readerFactory());
-
         final var writer = new Writer<>(leftRight.writer());
-
-        return new ConcurrentReadOptimizedMap<>(readerFactory, writer);
+        return new LeftRightMap<>(readerFactory, writer);
     }
 
 
     /**
-     * Creates a reader to the underlying EVMap. This operation should be
-     * totally threadsafe and efficient to do from any thread.
+     * Creates a reader to the underlying Map. This operation should be
+     * totally safe to do from any thread.
      */
     public static final class ReaderFactory<K, V> {
         private final LeftRight.ReaderFactory<HashMap<K, V>> innerFactory;
@@ -170,6 +168,22 @@ public final class ConcurrentReadOptimizedMap<K, V> {
     }
 
 
+    /**
+     * A writer into the Map.
+     * <p>
+     *     This is not thread safe, so either a single thread needs to have ownership of the writer
+     *     or access to the writer needs to be coordinated via some other mechanism.
+     * </p>
+     *
+     * <p>
+     *     All writes done are only propagated to readers when {@link Writer#refresh()}
+     *     or {@link Writer#close()} are called.
+     * </p>
+     *
+     * <p>
+     *     Any reads done via the writer will by definition always get the most up to date state of the map.
+     * </p>
+     */
     public static final class Writer<K, V> implements Closeable {
         private final LeftRight.Writer<HashMap<K, V>> innerWriter;
 

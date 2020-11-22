@@ -1,4 +1,4 @@
-package dev.mccue.concurrent;
+package dev.mccue.left_right;
 
 import java.util.ArrayList;
 import java.util.List;
