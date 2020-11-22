@@ -178,14 +178,11 @@ public final class ConcurrentReadOptimizedMap<K, V> {
         }
 
         public V put(K key, V value) {
-            this.innerWriter.performWrite(new Put<>(key, value));
-            return value;
+            return this.innerWriter.performWrite(new Put<>(key, value));
         }
 
         public V remove(K key) {
-            V previousVal = this.innerWriter.performRead(map -> map.get(key));
-            this.innerWriter.performWrite(new Remove<>(key));
-            return previousVal;
+            return this.innerWriter.performWrite(new Remove<>(key));
         }
 
         public void clear() {
