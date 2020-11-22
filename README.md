@@ -1,3 +1,5 @@
+## A (hopefully) Fast, (hopefully) Thread safe map inspired by evmap 
+
 ### Maven 
 ```xml
 	<repositories>
