@@ -8,9 +8,11 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
+ * A Left-Right Concurrency primitive.
+ *
  * https://www.youtube.com/watch?v=eLNAMEoKAAc
  */
-final class LeftRight<DS> {
+public final class LeftRight<DS> {
     private final ReaderFactory<DS> readerFactory;
     private final Writer<DS> writer;
 
