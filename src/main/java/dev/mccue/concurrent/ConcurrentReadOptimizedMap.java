@@ -119,7 +119,15 @@ public final class ConcurrentReadOptimizedMap<K, V> {
     /**
      * Insert a value into the map.
      */
-    record Put<K, V>(K key, V value) implements LeftRight.Operation<HashMap<K, V>> {
+    static final class Put<K, V> implements LeftRight.Operation<HashMap<K, V>>  {
+        private final K key;
+        private final V value;
+
+        public Put(K key, V value) {
+            this.key = key;
+            this.value = value;
+        }
+
         @Override
         public void perform(HashMap<K, V> map) {
             map.put(key, value);
@@ -129,7 +137,13 @@ public final class ConcurrentReadOptimizedMap<K, V> {
     /**
      * Remove some key from the map.
      */
-    record Remove<K, V>(K key) implements LeftRight.Operation<HashMap<K, V>> {
+    static final class Remove<K, V> implements LeftRight.Operation<HashMap<K, V>>  {
+        private final K key;
+
+        public Remove(K key) {
+            this.key = key;
+        }
+
         @Override
         public void perform(HashMap<K, V> map) {
             map.remove(key);
@@ -139,12 +153,22 @@ public final class ConcurrentReadOptimizedMap<K, V> {
     /**
      * Clears all entries from the map.
      */
-    record Clear<K, V>() implements LeftRight.Operation<HashMap<K, V>> {
+    static final class Clear<K, V> implements LeftRight.Operation<HashMap<K, V>>  {
+        private static final Clear<?, ?> INSTANCE = new Clear<>();
+
+        private Clear() {}
+
+        @SuppressWarnings("unchecked")
+        public static <K, V> Clear<K, V> getInstance() {
+            return (Clear<K, V>) INSTANCE;
+        }
+
         @Override
         public void perform(HashMap<K, V> map) {
             map.clear();
         }
     }
+
 
     public static final class Writer<K, V> implements Closeable {
         private final LeftRight.Writer<HashMap<K, V>> innerWriter;
@@ -165,7 +189,7 @@ public final class ConcurrentReadOptimizedMap<K, V> {
         }
 
         public void clear() {
-            this.innerWriter.performWrite(new Clear<>());
+            this.innerWriter.performWrite(Clear.getInstance());
         }
 
         public int size() {
