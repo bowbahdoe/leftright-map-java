@@ -12,7 +12,7 @@ import java.util.function.Supplier;
  *
  * https://www.youtube.com/watch?v=eLNAMEoKAAc
  */
-public final class LeftRight<DS> {
+final class LeftRight<DS> {
     private final ReaderFactory<DS> readerFactory;
     private final Writer<DS> writer;
 
@@ -24,14 +24,14 @@ public final class LeftRight<DS> {
     /**
      * @return A thread safe factory for producing readers.
      */
-    public ReaderFactory<DS> readerFactory() {
+    ReaderFactory<DS> readerFactory() {
         return this.readerFactory;
     }
 
     /**
      * @return The writer for the map.
      */
-    public Writer<DS> writer() {
+    Writer<DS> writer() {
         return this.writer;
     }
 
@@ -40,7 +40,7 @@ public final class LeftRight<DS> {
      * for any number of readers on any thread. The Writer is not thread safe and
      * must be owned by a single thread or otherwise coordinated.
      */
-    public static <DS> LeftRight<DS> create(Supplier<DS> createDS) {
+    static <DS> LeftRight<DS> create(Supplier<DS> createDS) {
         final var readerEpochs = new ArrayList<AtomicLong>();
         final var readerDS = createDS.get();
         final var readerDSRef = new AtomicReference<>(readerDS);
@@ -66,7 +66,7 @@ public final class LeftRight<DS> {
      * Creates a reader to the underlying Data structure. This operation should be
      * totally threadsafe and efficient to do from any thread.
      */
-    public static final class ReaderFactory<DS> {
+    static final class ReaderFactory<DS> {
         private final List<AtomicLong> readerEpochs;
         private final AtomicReference<DS> dsRef;
 
@@ -80,7 +80,7 @@ public final class LeftRight<DS> {
          * @return A new reader. This Reader is **not** thread-safe. For each thread that wants to read,
          * they should create their own readers with this factory or synchronize usage some other way.
          */
-        public Reader<DS> createReader() {
+        Reader<DS> createReader() {
             synchronized (this.readerEpochs) {
                 final var epoch = new AtomicLong();
                 this.readerEpochs.add(epoch);
@@ -93,7 +93,7 @@ public final class LeftRight<DS> {
      * A Reader to the Data Structure. Each reader must have only a single owner and is not
      * thread safe.
      */
-    public static final class Reader<DS> {
+    static final class Reader<DS> {
         private final AtomicReference<DS> dsRef;
         private final AtomicLong epochCounter;
 
@@ -102,7 +102,7 @@ public final class LeftRight<DS> {
             this.dsRef = dsRef;
         }
 
-        public <T> T performRead(Function<DS, T> readOperation) {
+        <T> T performRead(Function<DS, T> readOperation) {
             this.epochCounter.addAndGet(1);
             final var currentDS = dsRef.get();
             try {
@@ -120,15 +120,15 @@ public final class LeftRight<DS> {
      * Represents a loggable and repeatable operation on a data structure.
      * @param <DS> The Data Structure the Operation works on.
      */
-    public interface Operation<DS> {
-        void perform(DS ds);
+    interface Operation<DS, R> {
+        R perform(DS ds);
     }
 
-    public static final class Writer<DS> {
+    static final class Writer<DS> {
         /**
          * The log of operations performed on this data structure in the current refresh cycle.
          */
-        private final ArrayList<Operation<DS>> opLog;
+        private final ArrayList<Operation<DS, ?>> opLog;
 
         /**
          * A list of all of the epoch counts for the readers.
@@ -161,19 +161,20 @@ public final class LeftRight<DS> {
             this.writerDS = writerDS;
         }
 
-        public void performWrite(Operation<DS> operation) {
-            operation.perform(this.writerDS);
+        <R> R performWrite(Operation<DS, R> operation) {
+            R res = operation.perform(this.writerDS);
             this.opLog.add(operation);
+            return res;
         }
 
-        public <T> T performRead(Function<DS, T> read) {
+        <T> T performRead(Function<DS, T> read) {
             return read.apply(this.writerDS);
         }
 
         /**
          * Propagates writes to readers.
          */
-        public void refresh() {
+        void refresh() {
             // Swap the pointer for the readers
             this.readerDSRef.set(this.writerDS);
             final var pivot = this.writerDS;

@@ -87,7 +87,6 @@ public final class ConcurrentReadOptimizedMap<K, V> {
             this.innerReader = innerReader;
         }
 
-
         public V get(K key) {
             return this.innerReader.performRead(map -> map.get(key));
         }
@@ -119,7 +118,7 @@ public final class ConcurrentReadOptimizedMap<K, V> {
     /**
      * Insert a value into the map.
      */
-    static final class Put<K, V> implements LeftRight.Operation<HashMap<K, V>>  {
+    static final class Put<K, V> implements LeftRight.Operation<HashMap<K, V>, V>  {
         private final K key;
         private final V value;
 
@@ -129,15 +128,15 @@ public final class ConcurrentReadOptimizedMap<K, V> {
         }
 
         @Override
-        public void perform(HashMap<K, V> map) {
-            map.put(key, value);
+        public V perform(HashMap<K, V> map) {
+            return map.put(key, value);
         }
     }
 
     /**
      * Remove some key from the map.
      */
-    static final class Remove<K, V> implements LeftRight.Operation<HashMap<K, V>>  {
+    static final class Remove<K, V> implements LeftRight.Operation<HashMap<K, V>, V>  {
         private final K key;
 
         public Remove(K key) {
@@ -145,15 +144,15 @@ public final class ConcurrentReadOptimizedMap<K, V> {
         }
 
         @Override
-        public void perform(HashMap<K, V> map) {
-            map.remove(key);
+        public V perform(HashMap<K, V> map) {
+            return map.remove(key);
         }
     }
 
     /**
      * Clears all entries from the map.
      */
-    static final class Clear<K, V> implements LeftRight.Operation<HashMap<K, V>>  {
+    static final class Clear<K, V> implements LeftRight.Operation<HashMap<K, V>, Void>  {
         private static final Clear<?, ?> INSTANCE = new Clear<>();
 
         private Clear() {}
@@ -164,8 +163,9 @@ public final class ConcurrentReadOptimizedMap<K, V> {
         }
 
         @Override
-        public void perform(HashMap<K, V> map) {
+        public Void perform(HashMap<K, V> map) {
             map.clear();
+            return null;
         }
     }
 
