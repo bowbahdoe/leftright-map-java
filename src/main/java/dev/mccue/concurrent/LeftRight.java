@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -102,11 +101,11 @@ final class LeftRight<DS> {
             this.dsRef = dsRef;
         }
 
-        <T> T performRead(Function<DS, T> readOperation) {
+        <T> T performRead(Operation<DS, T> readOperation) {
             this.epochCounter.addAndGet(1);
             final var currentDS = dsRef.get();
             try {
-                return readOperation.apply(currentDS);
+                return readOperation.perform(currentDS);
             }
             finally {
                 this.epochCounter.addAndGet(1);
@@ -167,8 +166,8 @@ final class LeftRight<DS> {
             return res;
         }
 
-        <T> T performRead(Function<DS, T> read) {
-            return read.apply(this.writerDS);
+        <T> T performRead(Operation<DS, T> read) {
+            return read.perform(this.writerDS);
         }
 
         /**
