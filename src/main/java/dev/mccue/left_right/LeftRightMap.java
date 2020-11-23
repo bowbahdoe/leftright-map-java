@@ -121,7 +121,9 @@ public final class LeftRightMap<K, V> {
     }
 
     /**
-     * A Thread Safe reader into the Map. All the methods on this class should be safe to call from any Thread.
+     * A Thread Safe reader into the Map.
+     *
+     * <p>All the methods on this class should be safe to call from any Thread.
      * Uses {@link ThreadLocal} to give each thread its own Reader.
      */
     public static final class ThreadSafeReader<K, V> {
@@ -215,19 +217,14 @@ public final class LeftRightMap<K, V> {
 
     /**
      * A writer into the Map.
-     * <p>
-     *     This is not thread safe, so either a single thread needs to have ownership of the writer
-     *     or access to the writer needs to be coordinated via some other mechanism.
-     * </p>
      *
-     * <p>
-     *     All writes done are only propagated to readers when {@link Writer#refresh()}
-     *     or {@link Writer#close()} are called.
-     * </p>
+     * <p>This is not thread safe, so either a single thread needs to have ownership of the writer
+     * or access to the writer needs to be coordinated via some other mechanism.
      *
-     * <p>
-     *     Any reads done via the writer will by definition always get the most up to date state of the map.
-     * </p>
+     * <p>All writes done are only propagated to readers when {@link Writer#refresh()}
+     * or {@link Writer#close()} are called.
+     *
+     * <p>Any reads done via the writer will by definition always get the most up to date state of the map.
      */
     public static final class Writer<K, V> implements Closeable {
         private final LeftRight.Writer<HashMap<K, V>> innerWriter;
