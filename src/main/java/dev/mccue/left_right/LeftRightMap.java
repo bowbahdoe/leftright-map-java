@@ -10,25 +10,25 @@ import java.util.function.BiConsumer;
  * concurrent reads.
  *
  * Neither Readers or Writers implement java.util.Map at this stage, so if that is
- * a showstopper for you then
+ * a showstopper for you then 🤷.
  *
  * @param <K> The Key, assumed to be a valid immutable HashMap key.
  * @param <V> The Value, assumed to be safe to share across threads.
  */
 public final class LeftRightMap<K, V> {
-    private final ReaderFactory<K, V> readerFactory;
+    private final Reader<K, V> reader;
     private final Writer<K, V> writer;
 
-    private LeftRightMap(ReaderFactory<K, V> readerFactory, Writer<K, V> writer) {
-        this.readerFactory = readerFactory;
+    private LeftRightMap(Reader<K, V> reader, Writer<K, V> writer) {
+        this.reader = reader;
         this.writer = writer;
     }
 
     /**
      * @return A thread safe factory for producing readers.
      */
-    public ReaderFactory<K, V> readerFactory() {
-        return this.readerFactory;
+    public Reader<K, V> reader() {
+        return this.reader;
     }
 
     /**
@@ -48,68 +48,54 @@ public final class LeftRightMap<K, V> {
      */
     public static <K, V> LeftRightMap<K, V> create() {
         final var leftRight = LeftRight.<HashMap<K, V>>create(HashMap::new);
-        final var readerFactory = new ReaderFactory<>(leftRight.readerFactory());
+        final var readerPool = new Reader<>(leftRight.readerFactory());
         final var writer = new Writer<>(leftRight.writer());
-        return new LeftRightMap<>(readerFactory, writer);
-    }
-
-
-    /**
-     * Creates a reader to the underlying Map. This operation should be
-     * totally safe to do from any thread.
-     */
-    public static final class ReaderFactory<K, V> {
-        private final LeftRight.ReaderFactory<HashMap<K, V>> innerFactory;
-
-        private ReaderFactory(LeftRight.ReaderFactory<HashMap<K, V>> innerFactory) {
-            this.innerFactory = innerFactory;
-        }
-
-        /**
-         * @return A new reader. This Reader is **not** thread-safe. For each thread that wants to read,
-         * they should create their own readers with this factory or synchronize usage some other way.
-         */
-        public Reader<K, V> createReader() {
-            return new Reader<>(this.innerFactory.createReader());
-        }
+        return new LeftRightMap<>(readerPool, writer);
     }
 
     /**
-     * A Reader to the Map. Each reader must have only a single owner and is not
-     * thread safe.
+     * A Thread Safe reader into the map. Safe to share between threads as desired.
      */
     public static final class Reader<K, V> {
-        private final LeftRight.Reader<HashMap<K, V>> innerReader;
+        /**
+         * The readers in LeftRight aren't thread safe by themselves. What is safe
+         * is to use each reader in a dedicated thread. We can simplify that process
+         * somewhat via a thread locals so each thread gets its own dedicated reader.
+         *
+         * TODO: This will fall apart in a situation where the # and identity of threads changes a lot.
+         * (Since the matching LeftRight.Writer will have an ever growing list of epochs to traverse)
+         */
+        private final ThreadLocal<LeftRight.Reader<HashMap<K, V>>> innerReader;
 
-        private Reader(LeftRight.Reader<HashMap<K, V>> innerReader) {
-            this.innerReader = innerReader;
+        private Reader(LeftRight.ReaderFactory<HashMap<K, V>> innerFactory) {
+            this.innerReader = ThreadLocal.withInitial(innerFactory::createReader);
         }
 
         public V get(K key) {
-            return this.innerReader.performRead(map -> map.get(key));
+            return this.innerReader.get().performRead(map -> map.get(key));
         }
 
         public boolean containsKey(K key) {
-            return this.innerReader.performRead(map -> map.containsKey(key));
+            return this.innerReader.get().performRead(map -> map.containsKey(key));
         }
 
         public void forEach(BiConsumer<? super K, ? super V> action) {
-            this.innerReader.performRead(map -> {
+            this.innerReader.get().performRead(map -> {
                 map.forEach(action);
                 return null;
             });
         }
 
         public int size() {
-            return this.innerReader.performRead(HashMap::size);
+            return this.innerReader.get().performRead(HashMap::size);
         }
 
         public boolean isEmpty() {
-            return this.innerReader.performRead(HashMap::isEmpty);
+            return this.innerReader.get().performRead(HashMap::isEmpty);
         }
 
         public boolean containsValue(V value) {
-            return this.innerReader.performRead(map -> map.containsValue(value));
+            return this.innerReader.get().performRead(map -> map.containsValue(value));
         }
     }
 
@@ -258,5 +244,6 @@ public final class LeftRightMap<K, V> {
         public void close() {
             this.refresh();
         }
+
     }
 }

@@ -15,7 +15,7 @@ public class LeftRightMapTests {
     @Test
     public void writesOnlyPropagateOnRefresh() {
         final var map = LeftRightMap.<String, String>create();
-        final var reader = map.readerFactory().createReader();
+        final var reader = map.reader();
         final var writer = map.writer();
 
         assertNull(reader.get("a"));
@@ -28,7 +28,7 @@ public class LeftRightMapTests {
     @Test
     public void tryWithResourcesWillRefresh() {
         final var map = LeftRightMap.<String, String>create();
-        final var reader = map.readerFactory().createReader();
+        final var reader = map.reader();
 
         try (final var writer = map.writer()) {
             writer.put("a", "b");
@@ -38,13 +38,13 @@ public class LeftRightMapTests {
     }
 
     @Test
-    public void everyReaderSeesChangesAfterRefresh() {
+    public void everyReaderHandleSeesChangesAfterRefresh() {
         final var map = LeftRightMap.<String, String>create();
         final var readers = List.of(
-                map.readerFactory().createReader(),
-                map.readerFactory().createReader(),
-                map.readerFactory().createReader(),
-                map.readerFactory().createReader()
+                map.reader(),
+                map.reader(),
+                map.reader(),
+                map.reader()
         );
 
         for (final var reader : readers) {
@@ -64,24 +64,15 @@ public class LeftRightMapTests {
     public void readersOnDifferentThreadsSeeResults() {
         final var executor = Executors.newFixedThreadPool(8);
         final var map = LeftRightMap.<String, String>create();
-        final var readers = List.of(
-                map.readerFactory().createReader(),
-                map.readerFactory().createReader(),
-                map.readerFactory().createReader(),
-                map.readerFactory().createReader(),
-                map.readerFactory().createReader(),
-                map.readerFactory().createReader(),
-                map.readerFactory().createReader(),
-                map.readerFactory().createReader()
-        );
+
 
         try (final var writer = map.writer()) {
             writer.put("a", "b");
         }
 
         final List<Future<String>> readResults = new ArrayList<>();
-        for (final var reader : readers) {
-            readResults.add(executor.submit(() -> reader.get("a")));
+        for (int i = 0; i < 8; i++) {
+            readResults.add(executor.submit(() -> map.reader().get("a")));
         }
 
         assertEquals(
@@ -120,7 +111,7 @@ public class LeftRightMapTests {
     @Test
     public void differentOperationsAreAppliedInOrder() {
         final var map = LeftRightMap.<String, String>create();
-        final var reader = map.readerFactory().createReader();
+        final var reader = map.reader();
         final var writer = map.writer();
         writer.put("a", "b");
         writer.clear();
@@ -139,19 +130,17 @@ public class LeftRightMapTests {
         final var writer = map.writer();
         writer.put("a", "b");
         writer.refresh();
-
+        writer.put("a", "c");
 
         final var executor = Executors.newFixedThreadPool(8);
         final List<Future<String>> readResults = new ArrayList<>();
         for (int i = 0; i < 1000; i++) {
-            final var reader = map.readerFactory().createReader();
+            final var reader = map.reader();
             readResults.add(executor.submit(() -> reader.get("a")));
         }
 
-        writer.put("a", "c");
         writer.put("a", "d");
         writer.refresh();
-
 
         assertEquals(
                 Set.of("b", "d"), // spawning the futures should always take long enough to see the final state.
@@ -168,4 +157,6 @@ public class LeftRightMapTests {
 
         executor.shutdownNow();
     }
+
+
 }
