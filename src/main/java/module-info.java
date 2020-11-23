@@ -1,3 +1,3 @@
-module dev.mccue.concurrent {
-    exports dev.mccue.concurrent;
+module dev.mccue.left_right {
+    exports dev.mccue.left_right;
 }
