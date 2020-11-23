@@ -62,6 +62,9 @@ public final class LeftRightMap<K, V> {
         return new LeftRightMap<>(readerFactory, writer);
     }
 
+    /**
+     * A Thread Safe factory for creating Readers.
+     */
     public static final class ReaderFactory<K, V> {
         private final LeftRight.ReaderFactory<HashMap<K, V>> innerFactory;
 
@@ -70,11 +73,21 @@ public final class LeftRightMap<K, V> {
             this.innerFactory = innerFactory;
         }
 
+        /**
+         * @return A reader into the Map. This should be safe to call from any thread, but
+         * calling it over and over again could degrade performance, since currently Writers
+         * don't have a ability to "lose" readers.
+         */
         public Reader<K, V> createReader() {
             return new Reader<>(this.innerFactory.createReader());
         }
     }
 
+    /**
+     * A Reader into the map. The operations of this class are not by themselves thread safe, so each
+     * reader should only be accessed from a single thread at a time or be coordinated by some other
+     * mechanism.
+     */
     public static final class Reader<K, V> {
         private final LeftRight.Reader<HashMap<K, V>> innerReader;
 
@@ -107,6 +120,10 @@ public final class LeftRightMap<K, V> {
         }
     }
 
+    /**
+     * A Thread Safe reader into the Map. All the methods on this class should be safe to call from any Thread.
+     * Uses {@link ThreadLocal} to give each thread its own Reader.
+     */
     public static final class ThreadSafeReader<K, V> {
         private final ThreadLocal<Reader<K, V>> localReader;
 
