@@ -1,3 +1,5 @@
+[![](https://jitpack.io/v/bowbahdoe/leftright-map-java.svg)](https://jitpack.io/#bowbahdoe/leftright-map-java)
+
 ## A (hopefully) Fast, (hopefully) Thread safe map inspired by evmap 
 
 ### Maven 
