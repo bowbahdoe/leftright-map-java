@@ -284,7 +284,7 @@ public final class LeftRightMap<K, V> {
          *
          * <pre>
          * {@code
-         * final var map = ConcurrentReadOptimizedMap.<Integer, Integer>create();
+         * final var map = LeftRightMap.<Integer, Integer>create();
          * try (final var writer = map.writer()) { // Writes will be propagated at the end of scope.
          *     int key = 0;
          *     if (writer.containsKey(1)) {
