@@ -274,9 +274,6 @@ public final class LeftRightMap<K, V> {
 
         private Writer(LeftRight.Writer<HashMap<K, V>> innerWriter) {
             this.innerWriter = innerWriter;
-            // Read
-            new HashMap<>().getOrDefault();
-
         }
 
         public V put(K key, V value) {
@@ -318,7 +315,7 @@ public final class LeftRightMap<K, V> {
         public V getOrDefault(K key, V defaultValue) {
             return this.innerWriter.read(map -> map.getOrDefault(key, defaultValue));
         }
-        
+
         public boolean containsKey(K key) {
             return this.innerWriter.readBool(map -> map.containsKey(key));
         }
