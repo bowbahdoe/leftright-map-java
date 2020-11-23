@@ -4,7 +4,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 
 /**
  * A Left-Right Concurrency primitive.
@@ -101,11 +105,44 @@ final class LeftRight<DS> {
             this.dsRef = dsRef;
         }
 
-        <T> T performRead(Operation<DS, T> readOperation) {
+        <T> T read(Function<DS, T> readOperation) {
             this.epochCounter.addAndGet(1);
             final var currentDS = dsRef.get();
             try {
-                return readOperation.perform(currentDS);
+                return readOperation.apply(currentDS);
+            }
+            finally {
+                this.epochCounter.addAndGet(1);
+            }
+        }
+
+        int readInt(ToIntFunction<DS> readOperation) {
+            this.epochCounter.addAndGet(1);
+            final var currentDS = dsRef.get();
+            try {
+                return readOperation.applyAsInt(currentDS);
+            }
+            finally {
+                this.epochCounter.addAndGet(1);
+            }
+        }
+
+        boolean readBool(Predicate<DS> readOperation) {
+            this.epochCounter.addAndGet(1);
+            final var currentDS = dsRef.get();
+            try {
+                return readOperation.test(currentDS);
+            }
+            finally {
+                this.epochCounter.addAndGet(1);
+            }
+        }
+
+        void readVoid(Consumer<DS> readOperation) {
+            this.epochCounter.addAndGet(1);
+            final var currentDS = dsRef.get();
+            try {
+                readOperation.accept(currentDS);
             }
             finally {
                 this.epochCounter.addAndGet(1);
@@ -160,14 +197,26 @@ final class LeftRight<DS> {
             this.writerDS = writerDS;
         }
 
-        <R> R performWrite(Operation<DS, R> operation) {
+        <R> R write(Operation<DS, R> operation) {
             R res = operation.perform(this.writerDS);
             this.opLog.add(operation);
             return res;
         }
 
-        <T> T performRead(Operation<DS, T> read) {
-            return read.perform(this.writerDS);
+        <T> T read(Function<DS, T> readOperation) {
+            return readOperation.apply(this.writerDS);
+        }
+
+        int readInt(ToIntFunction<DS> readOperation) {
+            return readOperation.applyAsInt(this.writerDS);
+        }
+
+        boolean readBool(Predicate<DS> readOperation) {
+            return readOperation.test(this.writerDS);
+        }
+
+        void readVoid(Consumer<DS> readOperation) {
+            readOperation.accept(this.writerDS);
         }
 
         /**

@@ -16,19 +16,28 @@ import java.util.function.BiConsumer;
  * @param <V> The Value, assumed to be safe to share across threads.
  */
 public final class LeftRightMap<K, V> {
-    private final Reader<K, V> reader;
+    private final ReaderFactory<K, V> readerFactory;
+    private final ThreadSafeReader<K, V> threadSafeReader;
     private final Writer<K, V> writer;
 
-    private LeftRightMap(Reader<K, V> reader, Writer<K, V> writer) {
-        this.reader = reader;
+    private LeftRightMap(ReaderFactory<K, V> readerFactory, Writer<K, V> writer) {
+        this.readerFactory = readerFactory;
+        this.threadSafeReader = new ThreadSafeReader<>(readerFactory);
         this.writer = writer;
     }
 
     /**
      * @return A thread safe factory for producing readers.
      */
-    public Reader<K, V> reader() {
-        return this.reader;
+    public ReaderFactory<K, V> readerFactory() {
+        return this.readerFactory;
+    }
+
+    /**
+     * @return A thread safe reader into the map. Uses thread locals to give each physical thread its own reader.
+     */
+    public ThreadSafeReader<K, V> threadSafeReader() {
+        return this.threadSafeReader;
     }
 
     /**
@@ -48,56 +57,89 @@ public final class LeftRightMap<K, V> {
      */
     public static <K, V> LeftRightMap<K, V> create() {
         final var leftRight = LeftRight.<HashMap<K, V>>create(HashMap::new);
-        final var readerPool = new Reader<>(leftRight.readerFactory());
+        final var readerFactory = new ReaderFactory<>(leftRight.readerFactory());
         final var writer = new Writer<>(leftRight.writer());
-        return new LeftRightMap<>(readerPool, writer);
+        return new LeftRightMap<>(readerFactory, writer);
     }
 
-    /**
-     * A Thread Safe reader into the map. Safe to share between threads as desired.
-     */
-    public static final class Reader<K, V> {
-        /**
-         * The readers in LeftRight aren't thread safe by themselves. What is safe
-         * is to use each reader in a dedicated thread. We can simplify that process
-         * somewhat via a thread locals so each thread gets its own dedicated reader.
-         *
-         * TODO: This will fall apart in a situation where the # and identity of threads changes a lot.
-         * (Since the matching LeftRight.Writer will have an ever growing list of epochs to traverse)
-         */
-        private final ThreadLocal<LeftRight.Reader<HashMap<K, V>>> innerReader;
+    public static final class ReaderFactory<K, V> {
+        private final LeftRight.ReaderFactory<HashMap<K, V>> innerFactory;
 
-        private Reader(LeftRight.ReaderFactory<HashMap<K, V>> innerFactory) {
-            this.innerReader = ThreadLocal.withInitial(innerFactory::createReader);
+
+        private ReaderFactory(LeftRight.ReaderFactory<HashMap<K, V>> innerFactory) {
+            this.innerFactory = innerFactory;
+        }
+
+        public Reader<K, V> createReader() {
+            return new Reader<>(this.innerFactory.createReader());
+        }
+    }
+
+    public static final class Reader<K, V> {
+        private final LeftRight.Reader<HashMap<K, V>> innerReader;
+
+        private Reader(LeftRight.Reader<HashMap<K, V>> innerReader) {
+            this.innerReader = innerReader;
         }
 
         public V get(K key) {
-            return this.innerReader.get().performRead(map -> map.get(key));
+            return this.innerReader.read(map -> map.get(key));
         }
 
         public boolean containsKey(K key) {
-            return this.innerReader.get().performRead(map -> map.containsKey(key));
+            return this.innerReader.readBool(map -> map.containsKey(key));
         }
 
         public void forEach(BiConsumer<? super K, ? super V> action) {
-            this.innerReader.get().performRead(map -> {
-                map.forEach(action);
-                return null;
-            });
+            this.innerReader.readVoid(map -> map.forEach(action));
         }
 
         public int size() {
-            return this.innerReader.get().performRead(HashMap::size);
+            return this.innerReader.readInt(HashMap::size);
         }
 
         public boolean isEmpty() {
-            return this.innerReader.get().performRead(HashMap::isEmpty);
+            return this.innerReader.readBool(HashMap::isEmpty);
         }
 
         public boolean containsValue(V value) {
-            return this.innerReader.get().performRead(map -> map.containsValue(value));
+            return this.innerReader.readBool(map -> map.containsValue(value));
         }
     }
+
+    public static final class ThreadSafeReader<K, V> {
+        private final ThreadLocal<Reader<K, V>> localReader;
+
+        private ThreadSafeReader(ReaderFactory<K, V> innerFactory) {
+            this.localReader = ThreadLocal.withInitial(innerFactory::createReader);
+        }
+
+
+        public V get(K key) {
+            return this.localReader.get().get(key);
+        }
+
+        public boolean containsKey(K key) {
+            return this.localReader.get().containsKey(key);
+        }
+
+        public void forEach(BiConsumer<? super K, ? super V> action) {
+            this.localReader.get().forEach(action);
+        }
+
+        public int size() {
+            return this.localReader.get().size();
+        }
+
+        public boolean isEmpty() {
+            return this.localReader.get().isEmpty();
+        }
+
+        public boolean containsValue(V value) {
+            return this.localReader.get().containsValue(value);
+        }
+    }
+
 
     /**
      * Insert a value into the map.
@@ -178,42 +220,39 @@ public final class LeftRightMap<K, V> {
         }
 
         public V put(K key, V value) {
-            return this.innerWriter.performWrite(new Put<>(key, value));
+            return this.innerWriter.write(new Put<>(key, value));
         }
 
         public V remove(K key) {
-            return this.innerWriter.performWrite(new Remove<>(key));
+            return this.innerWriter.write(new Remove<>(key));
         }
 
         public void clear() {
-            this.innerWriter.performWrite(Clear.getInstance());
+            this.innerWriter.write(Clear.getInstance());
         }
 
         public int size() {
-            return this.innerWriter.performRead(HashMap::size);
+            return this.innerWriter.readInt(HashMap::size);
         }
 
         public boolean isEmpty() {
-            return this.innerWriter.performRead(HashMap::isEmpty);
+            return this.innerWriter.readBool(HashMap::isEmpty);
         }
 
         public boolean containsValue(V value) {
-            return this.innerWriter.performRead(map -> map.containsValue(value));
+            return this.innerWriter.readBool(map -> map.containsValue(value));
         }
 
         public V get(K key) {
-            return this.innerWriter.performRead(map -> map.get(key));
+            return this.innerWriter.read(map -> map.get(key));
         }
 
         public boolean containsKey(K key) {
-            return this.innerWriter.performRead(map -> map.containsKey(key));
+            return this.innerWriter.readBool(map -> map.containsKey(key));
         }
 
         public void forEach(BiConsumer<? super K, ? super V> action) {
-            this.innerWriter.performRead(map -> {
-                map.forEach(action);
-                return null;
-            });
+            this.innerWriter.readVoid(map -> map.forEach(action));
         }
 
         /**
@@ -244,6 +283,5 @@ public final class LeftRightMap<K, V> {
         public void close() {
             this.refresh();
         }
-
     }
 }

@@ -15,7 +15,7 @@ public class LeftRightMapTests {
     @Test
     public void writesOnlyPropagateOnRefresh() {
         final var map = LeftRightMap.<String, String>create();
-        final var reader = map.reader();
+        final var reader = map.threadSafeReader();
         final var writer = map.writer();
 
         assertNull(reader.get("a"));
@@ -28,7 +28,7 @@ public class LeftRightMapTests {
     @Test
     public void tryWithResourcesWillRefresh() {
         final var map = LeftRightMap.<String, String>create();
-        final var reader = map.reader();
+        final var reader = map.threadSafeReader();
 
         try (final var writer = map.writer()) {
             writer.put("a", "b");
@@ -41,10 +41,10 @@ public class LeftRightMapTests {
     public void everyReaderHandleSeesChangesAfterRefresh() {
         final var map = LeftRightMap.<String, String>create();
         final var readers = List.of(
-                map.reader(),
-                map.reader(),
-                map.reader(),
-                map.reader()
+                map.readerFactory().createReader(),
+                map.readerFactory().createReader(),
+                map.readerFactory().createReader(),
+                map.readerFactory().createReader()
         );
 
         for (final var reader : readers) {
@@ -72,7 +72,7 @@ public class LeftRightMapTests {
 
         final List<Future<String>> readResults = new ArrayList<>();
         for (int i = 0; i < 8; i++) {
-            readResults.add(executor.submit(() -> map.reader().get("a")));
+            readResults.add(executor.submit(() -> map.threadSafeReader().get("a")));
         }
 
         assertEquals(
@@ -111,7 +111,7 @@ public class LeftRightMapTests {
     @Test
     public void differentOperationsAreAppliedInOrder() {
         final var map = LeftRightMap.<String, String>create();
-        final var reader = map.reader();
+        final var reader = map.threadSafeReader();
         final var writer = map.writer();
         writer.put("a", "b");
         writer.clear();
@@ -135,7 +135,7 @@ public class LeftRightMapTests {
         final var executor = Executors.newFixedThreadPool(8);
         final List<Future<String>> readResults = new ArrayList<>();
         for (int i = 0; i < 1000; i++) {
-            final var reader = map.reader();
+            final var reader = map.threadSafeReader();
             readResults.add(executor.submit(() -> reader.get("a")));
         }
 
