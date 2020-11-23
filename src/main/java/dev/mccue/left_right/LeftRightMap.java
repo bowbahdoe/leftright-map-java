@@ -74,7 +74,7 @@ public final class LeftRightMap<K, V> {
         }
 
         /**
-         * @return A reader into the Map. This should be safe to call from any thread, but
+         * @return A Reader into the Map. This should be safe to call from any thread, but
          * calling it over and over again could degrade performance, since currently Writers
          * don't have a ability to "lose" readers.
          */
@@ -97,6 +97,10 @@ public final class LeftRightMap<K, V> {
 
         public V get(K key) {
             return this.innerReader.read(map -> map.get(key));
+        }
+
+        public V getOrDefault(K key, V defaultValue) {
+            return this.innerReader.read(map -> map.getOrDefault(key, defaultValue));
         }
 
         public boolean containsKey(K key) {
@@ -133,9 +137,12 @@ public final class LeftRightMap<K, V> {
             this.localReader = ThreadLocal.withInitial(innerFactory::createReader);
         }
 
-
         public V get(K key) {
             return this.localReader.get().get(key);
+        }
+
+        public V getOrDefault(K key, V defaultValue) {
+            return this.localReader.get().getOrDefault(key, defaultValue);
         }
 
         public boolean containsKey(K key) {
@@ -179,6 +186,24 @@ public final class LeftRightMap<K, V> {
     }
 
     /**
+     * Insert a value into the map if its not already there.
+     */
+    static final class PutIfAbsent<K, V> implements LeftRight.Operation<HashMap<K, V>, V>  {
+        private final K key;
+        private final V value;
+
+        public PutIfAbsent(K key, V value) {
+            this.key = key;
+            this.value = value;
+        }
+
+        @Override
+        public V perform(HashMap<K, V> map) {
+            return map.putIfAbsent(key, value);
+        }
+    }
+
+    /**
      * Remove some key from the map.
      */
     static final class Remove<K, V> implements LeftRight.Operation<HashMap<K, V>, V>  {
@@ -191,6 +216,24 @@ public final class LeftRightMap<K, V> {
         @Override
         public V perform(HashMap<K, V> map) {
             return map.remove(key);
+        }
+    }
+
+    /**
+     * Remove some key from the map if it has the matching value.
+     */
+    static final class RemoveWithValue<K, V> implements LeftRight.Operation<HashMap<K, V>, Boolean>  {
+        private final K key;
+        private final V value;
+
+        public RemoveWithValue(K key, V value) {
+            this.key = key;
+            this.value = value;
+        }
+
+        @Override
+        public Boolean perform(HashMap<K, V> map) {
+            return map.remove(key, value);
         }
     }
 
@@ -216,7 +259,7 @@ public final class LeftRightMap<K, V> {
 
 
     /**
-     * A writer into the Map.
+     * A Writer into the Map.
      *
      * <p>This is not thread safe, so either a single thread needs to have ownership of the writer
      * or access to the writer needs to be coordinated via some other mechanism.
@@ -231,14 +274,25 @@ public final class LeftRightMap<K, V> {
 
         private Writer(LeftRight.Writer<HashMap<K, V>> innerWriter) {
             this.innerWriter = innerWriter;
+            // Read
+            new HashMap<>().getOrDefault();
+
         }
 
         public V put(K key, V value) {
             return this.innerWriter.write(new Put<>(key, value));
         }
 
+        public V putIfAbsent(K key, V value) {
+            return this.innerWriter.write(new PutIfAbsent<>(key, value));
+        }
+
         public V remove(K key) {
             return this.innerWriter.write(new Remove<>(key));
+        }
+
+        public boolean remove(K key, V value) {
+            return this.innerWriter.write(new RemoveWithValue<>(key, value));
         }
 
         public void clear() {
@@ -261,6 +315,10 @@ public final class LeftRightMap<K, V> {
             return this.innerWriter.read(map -> map.get(key));
         }
 
+        public V getOrDefault(K key, V defaultValue) {
+            return this.innerWriter.read(map -> map.getOrDefault(key, defaultValue));
+        }
+        
         public boolean containsKey(K key) {
             return this.innerWriter.readBool(map -> map.containsKey(key));
         }
@@ -280,7 +338,8 @@ public final class LeftRightMap<K, V> {
          * A close() implementation that calls refresh() for convenient use with try-with-resources.
          *
          * <pre>
-         * {@code
+         * @code
+         * {
          * final var map = LeftRightMap.<Integer, Integer>create();
          * try (final var writer = map.writer()) { // Writes will be propagated at the end of scope.
          *     int key = 0;
