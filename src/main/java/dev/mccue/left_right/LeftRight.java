@@ -105,46 +105,46 @@ final class LeftRight<DS> {
         }
 
         <T> T read(Function<DS, T> readOperation) {
-            this.epochCounter.addAndGet(1);
+            this.epochCounter.incrementAndGet();
             final var currentDS = dsRef.get();
             try {
                 return readOperation.apply(currentDS);
             }
             finally {
-                this.epochCounter.addAndGet(1);
+                this.epochCounter.incrementAndGet();
             }
         }
 
         int readInt(ToIntFunction<DS> readOperation) {
-            this.epochCounter.addAndGet(1);
+            this.epochCounter.incrementAndGet();
             final var currentDS = dsRef.get();
             try {
                 return readOperation.applyAsInt(currentDS);
             }
             finally {
-                this.epochCounter.addAndGet(1);
+                this.epochCounter.incrementAndGet();
             }
         }
 
         boolean readBool(Predicate<DS> readOperation) {
-            this.epochCounter.addAndGet(1);
+            this.epochCounter.incrementAndGet();
             final var currentDS = dsRef.get();
             try {
                 return readOperation.test(currentDS);
             }
             finally {
-                this.epochCounter.addAndGet(1);
+                this.epochCounter.incrementAndGet();
             }
         }
 
         void readVoid(Consumer<DS> readOperation) {
-            this.epochCounter.addAndGet(1);
+            this.epochCounter.incrementAndGet();
             final var currentDS = dsRef.get();
             try {
                 readOperation.accept(currentDS);
             }
             finally {
-                this.epochCounter.addAndGet(1);
+                this.epochCounter.incrementAndGet();
             }
         }
 

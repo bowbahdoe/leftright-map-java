@@ -15,7 +15,7 @@
 	<dependency>
 	    <groupId>com.github.bowbahdoe</groupId>
 	    <artifactId>leftright-map-java</artifactId>
-	    <version>0.1.1</version>
+	    <version>0.1.3</version>
 	</dependency>
 ```
 ### Gradle
@@ -30,12 +30,12 @@
 
 ```groovy
 	dependencies {
-	        implementation 'com.github.bowbahdoe:leftright-map-java:0.1.1'
+	        implementation 'com.github.bowbahdoe:leftright-map-java:0.1.3'
 	}
 ```
 
 ### Leiningen
 ```clojure
 :repositories [["jitpack" "https://jitpack.io"]]
-:dependencies [[com.github.bowbahdoe/leftright-map-java "0.1.1"]]	
+:dependencies [[com.github.bowbahdoe/leftright-map-java "0.1.3"]]	
 ```
