@@ -83,11 +83,11 @@ final class LeftRight<DS> {
          * they should create their own readers with this factory or synchronize usage some other way.
          */
         Reader<DS> createReader() {
+            final var reader = new Reader<>(this.dsRef);
             synchronized (this.readers) {
-                final var reader = new Reader<>(this.dsRef);
                 this.readers.add(reader);
-                return reader;
             }
+            return reader;
         }
     }
 
@@ -233,7 +233,7 @@ final class LeftRight<DS> {
             this.readerDS = pivot;
 
             // Make sure readers have moved on
-            synchronized (this.readers) {
+            synchronized (this.readers) { // No new readers while we are refreshing.
                 var readers = this.readers;
                 while (readers.size() != 0) {
                     final var needToRetry = new ArrayList<Reader<DS>>();
