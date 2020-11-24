@@ -43,18 +43,18 @@ final class LeftRight<DS> {
      * must be owned by a single thread or otherwise coordinated.
      */
     static <DS> LeftRight<DS> create(Supplier<DS> createDS) {
-        final var readerEpochs = new ArrayList<AtomicLong>();
+        final var readers = new ArrayList<Reader<DS>>();
         final var readerDS = createDS.get();
         final var readerDSRef = new AtomicReference<>(readerDS);
         final var writerDS = createDS.get();
 
         final var readerFactory = new ReaderFactory<>(
-                readerEpochs,
+                readers,
                 readerDSRef
         );
 
         final var writer = new Writer<>(
-                readerEpochs,
+                readers,
                 readerDS,
                 readerDSRef,
                 writerDS
@@ -69,12 +69,12 @@ final class LeftRight<DS> {
      * totally threadsafe and efficient to do from any thread.
      */
     static final class ReaderFactory<DS> {
-        private final ArrayList<AtomicLong> readerEpochs;
+        private final ArrayList<Reader<DS>> readers;
         private final AtomicReference<DS> dsRef;
 
-        private ReaderFactory(ArrayList<AtomicLong> readerEpochs,
+        private ReaderFactory(ArrayList<Reader<DS>> readers,
                               AtomicReference<DS> dsRef) {
-            this.readerEpochs = readerEpochs;
+            this.readers = readers;
             this.dsRef = dsRef;
         }
 
@@ -83,10 +83,10 @@ final class LeftRight<DS> {
          * they should create their own readers with this factory or synchronize usage some other way.
          */
         Reader<DS> createReader() {
-            synchronized (this.readerEpochs) {
-                final var epoch = new AtomicLong();
-                this.readerEpochs.add(epoch);
-                return new Reader<>(epoch, this.dsRef);
+            synchronized (this.readers) {
+                final var reader = new Reader<>(this.dsRef);
+                this.readers.add(reader);
+                return reader;
             }
         }
     }
@@ -99,8 +99,8 @@ final class LeftRight<DS> {
         private final AtomicReference<DS> dsRef;
         private final AtomicLong epochCounter;
 
-        private Reader(AtomicLong epochCounter, AtomicReference<DS> dsRef) {
-            this.epochCounter = epochCounter;
+        private Reader(AtomicReference<DS> dsRef) {
+            this.epochCounter = new AtomicLong(0);
             this.dsRef = dsRef;
         }
 
@@ -147,6 +147,10 @@ final class LeftRight<DS> {
                 this.epochCounter.addAndGet(1);
             }
         }
+
+        private long epoch() {
+            return this.epochCounter.get();
+        }
     }
 
 
@@ -168,7 +172,7 @@ final class LeftRight<DS> {
         /**
          * A list of all of the epoch counts for the readers.
          */
-        private final ArrayList<AtomicLong> readerEpochs;
+        private final ArrayList<Reader<DS>> readers;
 
         /**
          * The data structure that readers should eventually be reading from.
@@ -185,12 +189,12 @@ final class LeftRight<DS> {
          */
         private DS writerDS;
 
-        private Writer(ArrayList<AtomicLong> readerEpochs,
+        private Writer(ArrayList<Reader<DS>> readers,
                        DS readerDS,
                        AtomicReference<DS> readerDSRef,
                        DS writerDS) {
             this.opLog = new ArrayList<>();
-            this.readerEpochs = readerEpochs;
+            this.readers = readers;
             this.readerDS = readerDS;
             this.readerDSRef = readerDSRef;
             this.writerDS = writerDS;
@@ -229,17 +233,17 @@ final class LeftRight<DS> {
             this.readerDS = pivot;
 
             // Make sure readers have moved on
-            synchronized (this.readerEpochs) {
-                var epochs = this.readerEpochs;
-                while (epochs.size() != 0) {
-                    final var needToRetry = new ArrayList<AtomicLong>();
-                    for (final var epoch : epochs) {
-                        final var epochValue = epoch.get();
+            synchronized (this.readers) {
+                var readers = this.readers;
+                while (readers.size() != 0) {
+                    final var needToRetry = new ArrayList<Reader<DS>>();
+                    for (final var reader : readers) {
+                        final var epochValue = reader.epoch();
                         if (epochValue % 2 == 1) {
-                            needToRetry.add(epoch);
+                            needToRetry.add(reader);
                         }
                     }
-                    epochs = needToRetry;
+                    readers = needToRetry;
                 }
             }
 
