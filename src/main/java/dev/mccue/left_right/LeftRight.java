@@ -1,7 +1,6 @@
 package dev.mccue.left_right;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -70,10 +69,10 @@ final class LeftRight<DS> {
      * totally threadsafe and efficient to do from any thread.
      */
     static final class ReaderFactory<DS> {
-        private final List<AtomicLong> readerEpochs;
+        private final ArrayList<AtomicLong> readerEpochs;
         private final AtomicReference<DS> dsRef;
 
-        private ReaderFactory(List<AtomicLong> readerEpochs,
+        private ReaderFactory(ArrayList<AtomicLong> readerEpochs,
                               AtomicReference<DS> dsRef) {
             this.readerEpochs = readerEpochs;
             this.dsRef = dsRef;
@@ -169,7 +168,7 @@ final class LeftRight<DS> {
         /**
          * A list of all of the epoch counts for the readers.
          */
-        private final List<AtomicLong> readerEpochs;
+        private final ArrayList<AtomicLong> readerEpochs;
 
         /**
          * The data structure that readers should eventually be reading from.
@@ -186,7 +185,7 @@ final class LeftRight<DS> {
          */
         private DS writerDS;
 
-        private Writer(List<AtomicLong> readerEpochs,
+        private Writer(ArrayList<AtomicLong> readerEpochs,
                        DS readerDS,
                        AtomicReference<DS> readerDSRef,
                        DS writerDS) {
@@ -231,9 +230,9 @@ final class LeftRight<DS> {
 
             // Make sure readers have moved on
             synchronized (this.readerEpochs) {
-                List<AtomicLong> epochs = this.readerEpochs;
+                var epochs = this.readerEpochs;
                 while (epochs.size() != 0) {
-                    List<AtomicLong> needToRetry = new ArrayList<>();
+                    final var needToRetry = new ArrayList<AtomicLong>();
                     for (final var epoch : epochs) {
                         final var epochValue = epoch.get();
                         if (epochValue % 2 == 1) {
