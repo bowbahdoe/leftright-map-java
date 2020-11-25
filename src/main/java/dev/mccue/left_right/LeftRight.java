@@ -96,7 +96,7 @@ final class LeftRight<DS> {
      * thread safe.
      */
     static final class Reader<DS> {
-        private final AtomicReference<DS> dsRef;
+        final AtomicReference<DS> dsRef;
         private volatile int epoch;
 
         private Reader(AtomicReference<DS> dsRef) {
