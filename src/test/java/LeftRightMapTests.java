@@ -126,43 +126,45 @@ public class LeftRightMapTests {
 
     @Test
     public void noIntermediateResultsAreSeenByReaders() {
-        final var map = LeftRightMap.<String, String>create();
-        final var writer = map.writer();
-        writer.put("a", "b");
-        writer.refresh();
-        writer.put("a", "c");
+        for (int i = 0; i < 5; i++) {
+            final var map = LeftRightMap.<String, String>create();
+            final var writer = map.writer();
+            writer.put("a", "b");
+            writer.refresh();
+            writer.put("a", "c");
 
-        final var executor = Executors.newFixedThreadPool(8);
-        final List<Future<String>> readResults = new ArrayList<>();
-        for (int i = 0; i < 1000000; i++) {
-            final var reader = map.threadSafeReader();
-            readResults.add(executor.submit(() -> reader.get("a")));
+            final var executor = Executors.newFixedThreadPool(8);
+            final List<Future<String>> readResults = new ArrayList<>();
+            for (int i = 0; i < 1000000; i++) {
+                final var reader = map.threadSafeReader();
+                readResults.add(executor.submit(() -> reader.get("a")));
+            }
+
+            try { // Pause to give the tasks enough time to see the bad value.
+                Thread.sleep(10);
+            }
+            catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
+            writer.put("a", "d");
+            writer.refresh();
+
+            assertEquals(
+                    Set.of("b", "d"), // spawning the futures should always take long enough to see the final state.
+                    readResults.stream()
+                            .map(res -> {
+                                try {
+                                    return res.get();
+                                } catch (Exception e) {
+                                    throw new RuntimeException(e);
+                                }
+                            })
+                            .collect(Collectors.toSet())
+            );
+
+            executor.shutdownNow();
         }
-
-        try { // Pause to give the tasks enough time to see the bad value.
-            Thread.sleep(10);
-        }
-        catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        writer.put("a", "d");
-        writer.refresh();
-
-        assertEquals(
-                Set.of("b", "d"), // spawning the futures should always take long enough to see the final state.
-                readResults.stream()
-                        .map(res -> {
-                            try {
-                                return res.get();
-                            } catch (Exception e) {
-                                throw new RuntimeException(e);
-                            }
-                        })
-                        .collect(Collectors.toSet())
-        );
-
-        executor.shutdownNow();
     }
 
 
