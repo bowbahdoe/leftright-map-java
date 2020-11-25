@@ -96,13 +96,7 @@ public final class LeftRightMap<K, V> {
         }
 
         public V get(K key) {
-            this.innerReader.incrementEpoch();
-            try {
-                return this.innerReader.dsRef.get().get(key);
-            }
-            finally {
-                this.innerReader.incrementEpoch();
-            }
+            return this.innerReader.read(map -> map.get(key));
         }
 
         public V getOrDefault(K key, V defaultValue) {

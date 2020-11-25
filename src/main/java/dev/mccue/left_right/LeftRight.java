@@ -96,20 +96,20 @@ final class LeftRight<DS> {
      * thread safe.
      */
     static final class Reader<DS> {
-        final AtomicReference<DS> dsRef;
-        private final AtomicLong epoch;
+        private final AtomicReference<DS> dsRef;
+        private volatile int epoch;
 
         private Reader(AtomicReference<DS> dsRef) {
-            this.epoch = new AtomicLong(0);
+            this.epoch = 0;
             this.dsRef = dsRef;
         }
 
-        private long epoch() {
-            return this.epoch.get();
+        private int epoch() {
+            return this.epoch;
         }
 
         void incrementEpoch() {
-            this.epoch.incrementAndGet();
+            this.epoch++;
         }
 
         <T> T read(Function<DS, T> readOperation) {
@@ -231,7 +231,10 @@ final class LeftRight<DS> {
          */
         void refresh() {
             // Swap the pointer for the readers
-            this.readerDSRef.set(this.writerDS);
+            boolean success = this.readerDSRef.compareAndSet(this.readerDS, this.writerDS);
+            if (!success) {
+                throw new RuntimeException("AAAHHH WHY!!");
+            }
             final var pivot = this.writerDS;
             this.writerDS = this.readerDS;
             this.readerDS = pivot;
@@ -239,15 +242,16 @@ final class LeftRight<DS> {
             // Track the last epoch we read from the readers.
             final class StillReadingReader {
                 private final Reader<?> reader;
-                private final long previousEpoch;
+                private final int previousEpoch;
 
-                StillReadingReader(Reader<?> reader, long previousEpoch) {
+                StillReadingReader(Reader<?> reader, int previousEpoch) {
                     this.previousEpoch = previousEpoch;
                     this.reader = reader;
                 }
 
                 boolean hasMovedOn() {
-                    return this.reader.epoch() != this.previousEpoch;
+                    final var newEpoch = this.reader.epoch();
+                    return newEpoch != this.previousEpoch;
                 }
             }
 
