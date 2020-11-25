@@ -96,7 +96,7 @@ final class LeftRight<DS> {
      * thread safe.
      */
     static final class Reader<DS> {
-        private final AtomicReference<DS> dsRef;
+        final AtomicReference<DS> dsRef;
         private final AtomicLong epoch;
 
         private Reader(AtomicReference<DS> dsRef) {
@@ -108,7 +108,7 @@ final class LeftRight<DS> {
             return this.epoch.get();
         }
 
-        private void incrementEpoch() {
+        void incrementEpoch() {
             this.epoch.incrementAndGet();
         }
 
