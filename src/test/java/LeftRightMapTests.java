@@ -134,9 +134,16 @@ public class LeftRightMapTests {
 
         final var executor = Executors.newFixedThreadPool(8);
         final List<Future<String>> readResults = new ArrayList<>();
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 1000000; i++) {
             final var reader = map.threadSafeReader();
             readResults.add(executor.submit(() -> reader.get("a")));
+        }
+
+        try { // Pause to give the tasks enough time to see the bad value.
+            Thread.sleep(10);
+        }
+        catch (InterruptedException e) {
+            throw new RuntimeException(e);
         }
 
         writer.put("a", "d");
