@@ -1,8 +1,5 @@
 package dev.mccue.left_right;
 
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -99,34 +96,20 @@ final class LeftRight<DS> {
      * thread safe.
      */
     static final class Reader<DS> {
-        private static final VarHandle EPOCH_HANDLE;
-        static {
-            try {
-                final var lookup = MethodHandles.lookup();
-                EPOCH_HANDLE = lookup.findVarHandle(Reader.class, "epoch", long.class);
-            } catch (IllegalAccessException | NoSuchFieldException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
         private final AtomicReference<DS> dsRef;
-
-        // The reason this is not an atomic long is somewhat contrived.
-        // Apparently using var handles is faster because we will have a flat memory
-        // layout.
-        private volatile long epoch;
+        private final AtomicLong epoch;
 
         private Reader(AtomicReference<DS> dsRef) {
-            this.epoch = 0;
+            this.epoch = new AtomicLong(0);
             this.dsRef = dsRef;
         }
 
         private long epoch() {
-            return this.epoch;
+            return this.epoch.get();
         }
 
         private void incrementEpoch() {
-            EPOCH_HANDLE.getAndAdd(this, 1);
+            this.epoch.incrementAndGet();
         }
 
         <T> T read(Function<DS, T> readOperation) {
@@ -253,18 +236,40 @@ final class LeftRight<DS> {
             this.writerDS = this.readerDS;
             this.readerDS = pivot;
 
+            // Track the last epoch we read from the readers.
+            final class StillReadingReader {
+                private final Reader<?> reader;
+                private final long previousEpoch;
+
+                StillReadingReader(Reader<?> reader, long previousEpoch) {
+                    this.previousEpoch = previousEpoch;
+                    this.reader = reader;
+                }
+
+                boolean hasMovedOn() {
+                    return this.reader.epoch() != this.previousEpoch;
+                }
+            }
+
             // Make sure readers have moved on
             synchronized (this.readers) { // No new readers while we are refreshing.
                 var readers = this.readers;
-                while (readers.size() != 0) {
-                    final var needToRetry = new ArrayList<Reader<DS>>();
-                    for (final var reader : readers) {
-                        final var epochValue = reader.epoch();
-                        if (epochValue % 2 == 1) {
+                var stillReading = new ArrayList<StillReadingReader>();
+                for (final var reader : readers) {
+                    final var epochValue = reader.epoch();
+                    if (epochValue % 2 == 1) {
+                        stillReading.add(new StillReadingReader(reader, epochValue));
+                    }
+                }
+
+                while (stillReading.size() != 0) {
+                    final var needToRetry = new ArrayList<StillReadingReader>();
+                    for (final var reader : stillReading) {
+                        if (!reader.hasMovedOn()) {
                             needToRetry.add(reader);
                         }
                     }
-                    readers = needToRetry;
+                    stillReading = needToRetry;
                 }
             }
 
