@@ -231,10 +231,7 @@ final class LeftRight<DS> {
          */
         void refresh() {
             // Swap the pointer for the readers
-            boolean success = this.readerDSRef.compareAndSet(this.readerDS, this.writerDS);
-            if (!success) {
-                throw new RuntimeException("AAAHHH WHY!!");
-            }
+            this.readerDSRef.set(this.writerDS);
             final var pivot = this.writerDS;
             this.writerDS = this.readerDS;
             this.readerDS = pivot;
@@ -279,7 +276,7 @@ final class LeftRight<DS> {
 
             // Apply operations to new data structure
             for (final var operation : this.opLog) {
-                operation.perform(this.readerDS);
+                operation.perform(this.writerDS);
             }
 
             // Clear operation log
