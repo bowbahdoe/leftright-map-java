@@ -110,15 +110,23 @@ final class LeftRight<DS> {
         }
 
         private final AtomicReference<DS> dsRef;
-        private volatile long epoch;
 
-        private void incrementEpoch() {
-            EPOCH_HANDLE.getAndAdd(this, 1);
-        }
+        // The reason this is not an atomic long is somewhat contrived.
+        // Apparently using var handles is faster because we will have a flat memory
+        // layout.
+        private volatile long epoch;
 
         private Reader(AtomicReference<DS> dsRef) {
             this.epoch = 0;
             this.dsRef = dsRef;
+        }
+
+        private long epoch() {
+            return this.epoch;
+        }
+
+        private void incrementEpoch() {
+            EPOCH_HANDLE.getAndAdd(this, 1);
         }
 
         <T> T read(Function<DS, T> readOperation) {
@@ -163,10 +171,6 @@ final class LeftRight<DS> {
             finally {
                 this.incrementEpoch();
             }
-        }
-
-        private long epoch() {
-            return this.epoch;
         }
     }
 
