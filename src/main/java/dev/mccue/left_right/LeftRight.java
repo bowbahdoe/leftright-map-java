@@ -96,7 +96,7 @@ final class LeftRight<DS> {
      * thread safe.
      */
     static final class Reader<DS> {
-        final AtomicReference<DS> dsRef;
+        private final AtomicReference<DS> dsRef;
         private volatile int epoch;
 
         private Reader(AtomicReference<DS> dsRef) {
@@ -110,6 +110,10 @@ final class LeftRight<DS> {
 
         void incrementEpoch() {
             this.epoch++;
+        }
+
+        DS currentDsState() {
+            return this.dsRef.get();
         }
 
         <T> T read(Function<DS, T> readOperation) {
