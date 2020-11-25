@@ -1,5 +1,8 @@
 package dev.mccue.left_right;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -96,60 +99,74 @@ final class LeftRight<DS> {
      * thread safe.
      */
     static final class Reader<DS> {
+        private static final VarHandle EPOCH_HANDLE;
+        static {
+            try {
+                final var lookup = MethodHandles.lookup();
+                EPOCH_HANDLE = lookup.findVarHandle(Reader.class, "epoch", long.class);
+            } catch (IllegalAccessException | NoSuchFieldException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         private final AtomicReference<DS> dsRef;
-        private final AtomicLong epochCounter;
+        private volatile long epoch;
+
+        private void incrementEpoch() {
+            EPOCH_HANDLE.getAndAdd(this, 1);
+        }
 
         private Reader(AtomicReference<DS> dsRef) {
-            this.epochCounter = new AtomicLong(0);
+            this.epoch = 0;
             this.dsRef = dsRef;
         }
 
         <T> T read(Function<DS, T> readOperation) {
-            this.epochCounter.incrementAndGet();
+            this.incrementEpoch();
             final var currentDS = dsRef.get();
             try {
                 return readOperation.apply(currentDS);
             }
             finally {
-                this.epochCounter.incrementAndGet();
+                this.incrementEpoch();
             }
         }
 
         int readInt(ToIntFunction<DS> readOperation) {
-            this.epochCounter.incrementAndGet();
+            this.incrementEpoch();
             final var currentDS = dsRef.get();
             try {
                 return readOperation.applyAsInt(currentDS);
             }
             finally {
-                this.epochCounter.incrementAndGet();
+                this.incrementEpoch();
             }
         }
 
         boolean readBool(Predicate<DS> readOperation) {
-            this.epochCounter.incrementAndGet();
+            this.incrementEpoch();
             final var currentDS = dsRef.get();
             try {
                 return readOperation.test(currentDS);
             }
             finally {
-                this.epochCounter.incrementAndGet();
+                this.incrementEpoch();
             }
         }
 
         void readVoid(Consumer<DS> readOperation) {
-            this.epochCounter.incrementAndGet();
+            this.incrementEpoch();
             final var currentDS = dsRef.get();
             try {
                 readOperation.accept(currentDS);
             }
             finally {
-                this.epochCounter.incrementAndGet();
+                this.incrementEpoch();
             }
         }
 
         private long epoch() {
-            return this.epochCounter.get();
+            return this.epoch;
         }
     }
 
