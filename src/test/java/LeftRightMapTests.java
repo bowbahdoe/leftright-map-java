@@ -126,7 +126,7 @@ public class LeftRightMapTests {
 
     @Test
     public void noIntermediateResultsAreSeenByReaders() {
-        for (int i = 0; i < 5; i++) {
+        for (int time = 0; time < 5; time++) {
             final var map = LeftRightMap.<String, String>create();
             final var writer = map.writer();
             writer.put("a", "b");
